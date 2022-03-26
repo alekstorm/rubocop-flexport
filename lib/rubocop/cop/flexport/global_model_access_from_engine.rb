@@ -105,10 +105,11 @@ module RuboCop
         # we override this method to bust the RuboCop cache when those files
         # change.
         def external_dependency_checksum
+          all_model_dir_paths = model_dir_paths.values.flatten
           if check_for_global_factory_bot?
-            Digest::SHA1.hexdigest((model_dir_paths + global_factories.keys.sort).join)
+            Digest::SHA1.hexdigest((all_model_dir_paths + global_factories.keys.sort).join)
           else
-            Digest::SHA1.hexdigest(model_dir_paths.join)
+            Digest::SHA1.hexdigest(all_model_dir_paths.join)
           end
         end
 
@@ -128,18 +129,18 @@ module RuboCop
         end
 
         def model_dir_paths
-          Dir[File.join(global_models_path, '**/*.rb')]
+          Hash[global_models_path.map { |p| [p, Dir[File.join(p, "**/*.rb")]] }]
         end
 
         def calculate_global_models
-          all_model_paths = model_dir_paths.reject do |path|
-            path.include?('/concerns/')
-          end
-          all_models = all_model_paths.map do |path|
-            # Translates `app/models/foo/bar_baz.rb` to `Foo::BarBaz`.
-            file_name = path.gsub(global_models_path, '').gsub('.rb', '')
-            ActiveSupport::Inflector.classify(file_name)
-          end
+          all_models = model_dir_paths.flat_map do |base_path, paths|
+            paths.map do |path|
+              next if path.include?('/concerns/')
+              # Translates `app/models/foo/bar_baz.rb` to `Foo::BarBaz`.
+              file_name = path.gsub(base_path, '').gsub('.rb', '')
+              ActiveSupport::Inflector.classify(file_name)
+            end
+          end.compact
           all_models - allowed_global_models
         end
 
@@ -192,9 +193,8 @@ module RuboCop
         end
 
         def global_models_path
-          path = cop_config['GlobalModelsPath']
-          path += '/' unless path.end_with?('/')
-          path
+          path = Array(cop_config["GlobalModelsPath"])
+          path.map { |p| p.end_with?("/") ? p : p + "/" }
         end
 
         def engines_path
