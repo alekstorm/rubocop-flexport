@@ -271,8 +271,10 @@ module RuboCop
         end
 
         def all_engines_camelized
-          all_snake_case = Dir["#{engines_path}*"].map do |e|
-            e.gsub(engines_path, '')
+          all_snake_case = cop_config['ProtectedEngines'] || begin
+            Dir["#{engines_path}*"].map do |e|
+              e.gsub(engines_path, '')
+            end
           end
           camelize_all(all_snake_case)
         end
